@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Call of Alvar - Revenge of the Toni, Part 1</title>
+  <style>
+    html, body {
+      margin:0; padding:0; font-family:sans-serif; overflow:hidden; height:100%;
+      background: url('https://static.vecteezy.com/system/resources/previews/010/865/546/non_2x/lawn-grass-seamless-in-summer-cartoon-nature-green-field-texture-cute-meadow-and-daisy-in-spring-pattern-summer-grass-on-ground-endless-seasonal-for-four-seasons-natural-abstract-background-vector.jpg') repeat center center fixed;
+      background-size: auto;
+    }
+    canvas {
+      display:block;
+      background: transparent;
+    }
+    #ui {
+      position:absolute; top:10px; left:10px; z-index:5;
+      color: white; text-shadow: 1px 1px 3px black;
+    }
+    #shop {
+      position:absolute; top:10px; right:10px; z-index:5;
+      background:rgba(0,0,0,0.5);
+      padding:10px;
+      border-radius:10px;
+      color: white;
+    }
+    #shop button {
+      display:block; margin:5px 0; padding:5px 10px;
+      width:120px; background-color:#333; color:white;
+      border:1px solid white; cursor:pointer;
+    }
+    #menu {
+      position:absolute; top:50%; left:50%;
+      transform:translate(-50%, -50%);
+      text-align:center;
+      color: white;
+      text-shadow: 1px 1px 4px black;
+      background: url('https://cdn.wallpapersafari.com/93/9/OFKhC3.jpg') no-repeat center center fixed;
+      background-size: cover;
+      width: 100%;
+      height: 100%;
+    }
+    #menu p {
+      font-size: 14px;
+      margin-top: 10px;
+    }
+    #gameOver {
+      position:absolute; top:50%; left:50%;
+      transform:translate(-50%, -50%);
+      text-align:center;
+      color: white;
+      text-shadow: 1px 1px 4px black;
+      background:rgba(0,0,0,0.7);
+      padding:20px;
+      border-radius:10px;
+      display:none;
+      z-index:10;
+    }
+    button {
+      margin:10px; padding:10px 20px; font-size:18px; cursor:pointer;
+    }
+    #towerInfo {
+      position:absolute; z-index:6;
+      background:rgba(0,0,0,0.7);
+      color:white;
+      padding:10px;
+      border-radius:5px;
+      display:none;
+      pointer-events:none;
+    }
+    #gameControls {
+      position:absolute; top:10px; left:150px; z-index:5;
+      background:rgba(0,0,0,0.5);
+      padding:10px;
+      border-radius:10px;
+      color: white;
+    }
+    #gameControls button {
+      display:block; margin:5px 0; padding:5px 10px;
+      width:120px; background-color:#333; color:white;
+      border:1px solid white; cursor:pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="menu">
+    <h1>Call of Alvar - Revenge of the Toni, Part 1</h1>
+    <p>Developed by Jonas and made by JoVal Gaming Company</p>
+    <button onclick="startGame()">Pelaa</button>
+  </div>
+
+  <div id="gameOver" style="display:none">
+    <h2 id="gameOverMessage"></h2>
+    <button onclick="returnToMenu()">Etusivu</button>
+    <button onclick="restartGame()">Pelaa uudestaan</button>
+  </div>
+
+  <div id="ui" style="display:none">
+    <div>Elämä: <span id="hp">200</span></div>
+    <div>Kolikot: <span id="coins">0</span></div>
+    <div>Kierros: <span id="wave">1</span></div>
+  </div>
+
+  <div id="shop" style="display:none">
+    <h3>Osta Tykki</h3>
+    <button onmousemove="showTowerInfo(event, 0, 25)" onmouseout="hideTowerInfo()" onclick="selectTower(0, 25)">Tykki 25 kolikkoa</button>
+    <button onmousemove="showTowerInfo(event, 1, 50)" onmouseout="hideTowerInfo()" onclick="selectTower(1, 50)">Tykki 50 kolikkoa</button>
+    <button onmousemove="showTowerInfo(event, 2, 80)" onmouseout="hideTowerInfo()" onclick="selectTower(2, 80)">Tykki 80 kolikkoa</button>
+    <button onmousemove="showTowerInfo(event, 3, 120)" onmouseout="hideTowerInfo()" onclick="selectTower(3, 120)">Tykki 120 kolikkoa</button>
+    <button onmousemove="showTowerInfo(event, 4, 100)" onmouseout="hideTowerInfo()" onclick="selectTower(4, 100)">Raketinheitin 100 kolikkoa</button>
+    <button onmousemove="showTowerInfo(event, 5, 100)" onmouseout="hideTowerInfo()" onclick="selectTower(5, 100)">Tonin Huume Bisnes 100 kolikkoa</button>
+    <button onmousemove="showNukeInfo(event)" onmouseout="hideTowerInfo()" onclick="buyNuke()">Nuke 500 kolikkoa</button>
+  </div>
+
+  <div id="gameControls" style="display:none">
+    <button onclick="togglePause()">Pause</button>
+    <button onclick="returnToMenu()">Etusivu</button>
+  </div>
+
+  <div id="towerInfo"></div>
+
+  <canvas id="game"></canvas>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let baseHP = 200;
+    let coins = 0;
+    let wave = 1;
+    let goblins = [];
+    let towers = [];
+    let projectiles = [];
+    let explosions = [];
+    let nextWaveTime = 20000;
+    let lastWaveTime = Date.now();
+    let lastCoinTime = Date.now();
+    let gameRunning = false;
+    let selectedTower = null;
+    let isPaused = false;
+    let allGoblinsDefeated = false;
+
+    // Image placeholders for local files
+    const hobgoblinImage = new Image();
+    hobgoblinImage.src = '"C:\Users\joona\OneDrive\Kuvat\Kameran kuvat\20131122_180827000_iOS.jpg"'; // Replace with your local hobgoblin image path
+    hobgoblinImage.onerror = () => console.error("Failed to load hobgoblin image");
+
+    const kingGoblinImage = new Image();
+    kingGoblinImage.src = '"C:\Users\joona\OneDrive\Kuvat\Kameran kuvat\20131122_181612000_iOS.jpg"'; // Replace with your local king goblin image path
+    kingGoblinImage.onerror = () => console.error("Failed to load king goblin image");
+
+    const castlePersonImage = new Image();
+    castlePersonImage.src = '"C:\Users\joona\OneDrive\Kuvat\Kameran kuvat\20131122_171126000_iOS.jpg"'; // Replace with your local castle person image path
+    castlePersonImage.onerror = () => console.error("Failed to load castle person image");
+
+    let castleX = canvas.width / 2 - 60; // Center castle horizontally
+    let castleY = canvas.height - 120;
+    const castleWidth = 120;
+    const castleHeight = 120;
+
+    let path = [
+      {x: canvas.width * 0.10, y: canvas.height * 0.1},
+      {x: canvas.width * 0.10, y: canvas.height * 0.2},
+      {x: canvas.width * 0.80, y: canvas.height * 0.2},
+      {x: canvas.width * 0.80, y: canvas.height * 0.3},
+      {x: canvas.width * 0.10, y: canvas.height * 0.3},
+      {x: canvas.width * 0.10, y: canvas.height * 0.4},
+      {x: canvas.width * 0.80, y: canvas.height * 0.4},
+      {x: canvas.width * 0.80, y: canvas.height * 0.5},
+      {x: canvas.width * 0.10, y: canvas.height * 0.5},
+      {x: canvas.width * 0.10, y: canvas.height * 0.6},
+      {x: canvas.width * 0.80, y: canvas.height * 0.6},
+      {x: canvas.width * 0.80, y: canvas.height * 0.7},
+      {x: canvas.width * 0.10, y: canvas.height * 0.7},
+      {x: canvas.width * 0.10, y: canvas.height * 0.8},
+      {x: castleX + castleWidth / 2, y: canvas.height * 0.8},
+      {x: castleX + castleWidth / 2, y: castleY + castleHeight / 2}
+    ];
+
+    window.addEventListener("resize", () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      castleX = canvas.width / 2 - 60; // Recenter castle
+      castleY = canvas.height - 120;
+      path = [
+        {x: canvas.width * 0.10, y: canvas.height * 0.1},
+        {x: canvas.width * 0.10, y: canvas.height * 0.2},
+        {x: canvas.width * 0.80, y: canvas.height * 0.2},
+        {x: canvas.width * 0.80, y: canvas.height * 0.3},
+        {x: canvas.width * 0.10, y: canvas.height * 0.3},
+        {x: canvas.width * 0.10, y: canvas.height * 0.4},
+        {x: canvas.width * 0.80, y: canvas.height * 0.4},
+        {x: canvas.width * 0.80, y: canvas.height * 0.5},
+        {x: canvas.width * 0.10, y: canvas.height * 0.5},
+        {x: canvas.width * 0.10, y: canvas.height * 0.6},
+        {x: canvas.width * 0.80, y: canvas.height * 0.6},
+        {x: canvas.width * 0.80, y: canvas.height * 0.7},
+        {x: canvas.width * 0.10, y: canvas.height * 0.7},
+        {x: canvas.width * 0.10, y: canvas.height * 0.8},
+        {x: castleX + castleWidth / 2, y: canvas.height * 0.8},
+        {x: castleX + castleWidth / 2, y: castleY + castleHeight / 2}
+      ];
+    });
+
+    function startGame() {
+      document.getElementById("menu").style.display = "none";
+      document.getElementById("gameOver").style.display = "none";
+      document.getElementById("ui").style.display = "block";
+      document.getElementById("shop").style.display = "block";
+      document.getElementById("gameControls").style.display = "block";
+      gameRunning = true;
+      isPaused = false;
+      baseHP = 200;
+      coins = 0;
+      wave = 1;
+      goblins = [];
+      towers = [];
+      projectiles = [];
+      explosions = [];
+      selectedTower = null;
+      allGoblinsDefeated = false;
+      lastWaveTime = Date.now();
+      lastCoinTime = Date.now();
+      goblins.push(new Goblin());
+      requestAnimationFrame(gameLoop);
+    }
+
+    function restartGame() {
+      document.getElementById("gameOver").style.display = "none";
+      startGame();
+    }
+
+    function togglePause() {
+      isPaused = !isPaused;
+      document.getElementById("hp").textContent = baseHP;
+      document.getElementById("coins").textContent = coins;
+      document.getElementById("wave").textContent = wave;
+      if (!isPaused && gameRunning) {
+        lastWaveTime = Date.now();
+        lastCoinTime = Date.now();
+        requestAnimationFrame(gameLoop);
+      }
+    }
+
+    function returnToMenu() {
+      gameRunning = false;
+      document.getElementById("menu").style.display = "block";
+      document.getElementById("gameOver").style.display = "none";
+      document.getElementById("ui").style.display = "none";
+      document.getElementById("shop").style.display = "none";
+      document.getElementById("gameControls").style.display = "none";
+      document.getElementById("towerInfo").style.display = "none";
+      baseHP = 200;
+      coins = 0;
+      wave = 1;
+      goblins = [];
+      towers = [];
+      projectiles = [];
+      explosions = [];
+      selectedTower = null;
+      isPaused = false;
+      allGoblinsDefeated = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function showTowerInfo(event, level, cost) {
+      const towerInfo = document.getElementById("towerInfo");
+      const range = level === 4 ? "Ääretön" : level === 5 ? "Ei ammu" : 140 + level * 30;
+      const fireRate = level === 4 ? 1000 : level === 5 ? "Ei ammu" : 1000 - level * 200;
+      const projectileType = level === 1 ? "Räjähtävä" : level === 2 ? "Punainen laser" : level === 3 ? "Sininen laser" : level === 4 ? "Ohjus" : level === 5 ? "Ei ammuksia" : "Normaali";
+      const effect = level === 5 ? "<br>Tuottaa: 1 kolikko / 2.5s" : "";
+      towerInfo.innerHTML = `
+        ${level === 4 ? "Raketinheitin" : level === 5 ? "Tonin Huume Bisnes" : `Tykki Taso ${level + 1}`}<br>
+        Hinta: ${cost} kolikkoa<br>
+        Kantama: ${range} pikseliä<br>
+        Ampumisnopeus: ${fireRate} ms<br>
+        Ammus: ${projectileType}${effect}
+      `;
+      towerInfo.style.display = "block";
+      towerInfo.style.left = `${event.clientX + 10}px`;
+      towerInfo.style.top = `${event.clientY + 10}px`;
+    }
+
+    function showNukeInfo(event) {
+      const towerInfo = document.getElementById("towerInfo");
+      towerInfo.innerHTML = `
+        Nuke<br>
+        Hinta: 500 kolikkoa<br>
+        Tuhoaa: Kaikki goblinit näytöllä<br>
+        Efekti: Suuri räjähdys
+      `;
+      towerInfo.style.display = "block";
+      towerInfo.style.left = `${event.clientX + 10}px`;
+      towerInfo.style.top = `${event.clientY + 10}px`;
+    }
+
+    function hideTowerInfo() {
+      document.getElementById("towerInfo").style.display = "none";
+    }
+
+    function selectTower(level, cost) {
+      if (coins >= cost) {
+        selectedTower = { level, cost, placing: true };
+      } else {
+        alert("Ei tarpeeksi kolikoita!");
+      }
+    }
+
+    function buyNuke() {
+      if (coins >= 500) {
+        coins -= 500;
+        goblins.forEach(g => g.hp = 0);
+        explosions.push({
+          x: canvas.width / 2,
+          y: canvas.height / 2,
+          radius: 150,
+          alpha: 1,
+          startTime: Date.now(),
+          isNuke: true
+        });
+      } else {
+        alert("Ei tarpeeksi kolikoita!");
+      }
+    }
+
+    canvas.addEventListener("mousemove", function(e){
+      if (selectedTower && selectedTower.placing) {
+        selectedTower.x = e.clientX;
+        selectedTower.y = e.clientY;
+      }
+    });
+
+    canvas.addEventListener("click", function(e){
+      if (selectedTower && selectedTower.placing) {
+        if (isNearPath(e.clientX, e.clientY, 60)) {
+          let canPlace = true;
+          for (const t of towers) {
+            if (distance(t.x, t.y, e.clientX, e.clientY) < 40) {
+              canPlace = false;
+              break;
+            }
+          }
+          if (canPlace) {
+            towers.push(new Tower(e.clientX, e.clientY, selectedTower.level));
+            coins -= selectedTower.cost;
+            selectedTower = null;
+          } else {
+            alert("Tykki on jo liian lähellä toista!");
+          }
+        } else {
+          alert("Tykin pitää olla radan läheisyydessä.");
+        }
+      }
+    });
+
+    function distance(x1, y1, x2, y2) {
+      return Math.hypot(x2 - x1, y2 - y1);
+    }
+
+    function isNearPath(x, y, maxDist) {
+      for (let i = 0; i < path.length - 1; i++) {
+        const p1 = path[i];
+        const p2 = path[i+1];
+        if (pointToSegmentDistance(x, y, p1.x, p1.y, p2.x, p2.y) <= maxDist) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+      const lineLenSq = (x2 - x1)**2 + (y2 - y1)**2;
+      if (lineLenSq === 0) return distance(px, py, x1, y1);
+      let t = ((px - x1)*(x2 - x1) + (py - y1)*(y2 - y1)) / lineLenSq;
+      t = Math.max(0, Math.min(1, t));
+      const projX = x1 + t * (x2 - x1);
+      const projY = y1 + t * (y2 - y1);
+      return distance(px, py, projX, projY);
+    }
+
+    class Goblin {
+      constructor(isHobgoblin = false, isKingGoblin = false, isSpeedGoblin = false, isBalloonGoblin = false) {
+        this.x = path[0].x;
+        this.y = path[0].y;
+        this.isHobgoblin = isHobgoblin;
+        this.isKingGoblin = isKingGoblin;
+        this.isSpeedGoblin = isSpeedGoblin;
+        this.isBalloonGoblin = isBalloonGoblin;
+        const hpMultiplier = Math.pow(2, Math.floor((wave - 1) / 10));
+        this.hp = (isKingGoblin || isBalloonGoblin ? 20 : isHobgoblin ? 12 : 4) * hpMultiplier;
+        this.size = isBalloonGoblin ? 24 : isKingGoblin ? 60 : isHobgoblin ? 36 : 12;
+        this.pathIndex = 0;
+        this.speed = isSpeedGoblin ? 4 : 2;
+        this.atCastleEdge = false;
+        this.lastHit = Date.now();
+        this.positionIndex = 0;
+      }
+      update() {
+        if (!this.atCastleEdge) {
+          const target = path[this.pathIndex + 1];
+          if (!target) return;
+          const dx = target.x - this.x;
+          const dy = target.y - this.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < this.speed) {
+            this.x = target.x;
+            this.y = target.y;
+            this.pathIndex++;
+            if (this.pathIndex === path.length - 1) {
+              this.atCastleEdge = true;
+              this.positionIndex = goblins.filter(g => g.atCastleEdge && g.hp > 0).length - 1;
+              this.x = castleX - this.positionIndex * (this.size + 10);
+              this.lastHit = Date.now();
+            }
+          } else {
+            this.x += this.speed * dx / dist;
+            this.y += this.speed * dy / dist;
+          }
+        } else {
+          if (Date.now() - this.lastHit >= 1000) {
+            baseHP--;
+            this.lastHit = Date.now();
+          }
+        }
+      }
+      draw() {
+        if (this.isBalloonGoblin) {
+          ctx.fillStyle = "#FF0000";
+          ctx.beginPath();
+          ctx.arc(this.x, this.y - this.size - 20, this.size / 1.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "#000000";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(this.x - this.size / 2, this.y - this.size);
+          ctx.lineTo(this.x - this.size / 4, this.y - this.size / 2);
+          ctx.moveTo(this.x + this.size / 2, this.y - this.size);
+          ctx.lineTo(this.x + this.size / 4, this.y - this.size / 2);
+          ctx.stroke();
+          ctx.fillStyle = "#8B4513";
+          ctx.fillRect(this.x - this.size / 2, this.y - this.size / 2, this.size, this.size / 2);
+          ctx.fillStyle = "#0000FF";
+          ctx.beginPath();
+          ctx.arc(this.x, this.y - this.size / 2, this.size / 2, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (this.isHobgoblin) {
+          ctx.save();
+          ctx.drawImage(hobgoblinImage, this.x - this.size, this.y - this.size, this.size * 2, this.size * 2);
+          ctx.restore();
+        } else if (this.isKingGoblin) {
+          ctx.save();
+          ctx.drawImage(kingGoblinImage, this.x - this.size, this.y - this.size, this.size * 2, this.size * 2);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = this.isSpeedGoblin ? "#808080" : "#228B22";
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "white";
+          ctx.beginPath();
+          ctx.arc(this.x - this.size / 2.4, this.y - this.size / 3, this.size / 4, 0, Math.PI * 2);
+          ctx.arc(this.x + this.size / 2.4, this.y - this.size / 3, this.size / 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "black";
+          ctx.beginPath();
+          ctx.arc(this.x - this.size / 2.4, this.y - this.size / 3, this.size / 8, 0, Math.PI * 2);
+          ctx.arc(this.x + this.size / 2.4, this.y - this.size / 3, this.size / 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "#654321";
+          ctx.lineWidth = this.size / 4;
+          ctx.beginPath();
+          ctx.moveTo(this.x + this.size / 1.2, this.y + this.size / 2);
+          ctx.lineTo(this.x + this.size * 1.5, this.y + this.size);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(this.x + this.size * 1.5, this.y + this.size);
+          ctx.lineTo(this.x + this.size, this.y + this.size * 1.5);
+          ctx.stroke();
+        }
+      }
+    }
+
+    class Tower {
+      constructor(x, y, level) {
+        this.x = x;
+        this.y = y;
+        this.level = level;
+        this.range = level === 4 ? Infinity : level === 5 ? 0 : 140 + level * 30;
+        this.fireRate = level === 4 ? 1000 : level === 5 ? Infinity : 1000 - level * 200;
+        this.lastShot = 0;
+        this.target = null;
+        this.lastCoinGen = Date.now();
+      }
+      update() {
+        if (this.level === 5) {
+          if (Date.now() - this.lastCoinGen >= 2500) {
+            coins += 1;
+            this.lastCoinGen = Date.now();
+          }
+          return;
+        }
+        if (Date.now() - this.lastShot > this.fireRate) {
+          let target = null;
+          let minDist = Infinity;
+          for (const g of goblins) {
+            if (g.hp > 0 && !g.atCastleEdge && !(this.level >= 2 && this.level < 4 && g.isSpeedGoblin) && !(this.level < 4 && g.isBalloonGoblin) && !(this.level === 4 && !g.isBalloonGoblin)) {
+              const dist = distance(this.x, this.y, g.x, g.y);
+              if (dist < this.range && dist < minDist) {
+                minDist = dist;
+                target = g;
+              }
+            }
+            if (g.hp > 0 && g.atCastleEdge && !(this.level >= 2 && this.level < 4 && g.isSpeedGoblin) && !(this.level < 4 && g.isBalloonGoblin) && !(this.level === 4 && !g.isBalloonGoblin)) {
+              const dist = distance(this.x, this.y, g.x, g.y);
+              if (dist < this.range && dist < minDist) {
+                minDist = dist;
+                target = g;
+              }
+            }
+          }
+          if (target) {
+            this.target = target;
+            projectiles.push(new Projectile(this.x, this.y, target, this.level));
+            this.lastShot = Date.now();
+          } else {
+            this.target = null;
+          }
+        }
+      }
+      draw(showRange) {
+        ctx.save();
+        if (this.target && this.level !== 5) {
+          const angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+          if (this.level === 0) {
+            ctx.translate(this.x, this.y);
+            ctx.rotate(angle);
+            ctx.fillStyle = "#666";
+            ctx.beginPath();
+            ctx.rect(-12, -12, 24, 24);
+            ctx.fill();
+            ctx.strokeStyle = "#444";
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(18, 0);
+            ctx.stroke();
+          } else if (this.level === 1) {
+            ctx.fillStyle = "#1C2526";
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 12, Math.PI, 0);
+            ctx.fill();
+            ctx.fillRect(this.x - 12, this.y, 24, 12);
+            ctx.fillStyle = "#666";
+            ctx.beginPath();
+            ctx.arc(this.x - 8, this.y + 12, 4, 0, Math.PI * 2);
+            ctx.arc(this.x + 8, this.y + 12, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(angle);
+            ctx.fillStyle = "#1C2526";
+            ctx.fillRect(0, -6, 18, 12);
+            ctx.strokeStyle = "#666";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, -6, 18, 12);
+          } else if (this.level === 2) {
+            ctx.fillStyle = "#A9A9A9";
+            ctx.fillRect(this.x - 15, this.y - 10, 30, 20);
+            ctx.beginPath();
+            ctx.moveTo(this.x - 15, this.y - 10);
+            ctx.lineTo(this.x - 10, this.y + 10);
+            ctx.lineTo(this.x + 10, this.y + 10);
+            ctx.lineTo(this.x + 15, this.y - 10);
+            ctx.closePath();
+            ctx.fill();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(angle);
+            ctx.fillStyle = "#FF0000";
+            ctx.fillRect(15, -2, 20, 4);
+          } else if (this.level === 3) {
+            ctx.fillStyle = "#D3D3D3";
+            ctx.fillRect(this.x - 18, this.y - 12, 36, 24);
+            ctx.beginPath();
+            ctx.arc(this.x, this.y + 12, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#0000FF";
+            ctx.fillRect(this.x - 10, this.y - 12, 4, 24);
+            ctx.fillRect(this.x + 6, this.y - 12, 4, 24);
+            ctx.translate(this.x, this.y);
+            ctx.rotate(angle);
+            ctx.fillStyle = "#0000FF";
+            ctx.fillRect(18, -4, 24, 8);
+          } else if (this.level === 4) {
+            ctx.fillStyle = "#013220";
+            ctx.fillRect(this.x - 20, this.y - 15, 40, 30);
+            ctx.beginPath();
+            ctx.moveTo(this.x - 20, this.y + 15);
+            ctx.lineTo(this.x, this.y + 25);
+            ctx.lineTo(this.x + 20, this.y + 15);
+            ctx.closePath();
+            ctx.fill();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(angle);
+            ctx.fillStyle = "#555";
+            ctx.fillRect(20, -3, 25, 6);
+          }
+        } else {
+          if (this.level === 0) {
+            ctx.fillStyle = "#666";
+            ctx.beginPath();
+            ctx.rect(this.x - 12, this.y - 12, 24, 24);
+            ctx.fill();
+            ctx.strokeStyle = "#444";
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.x + 18, this.y);
+            ctx.stroke();
+          } else if (this.level === 1) {
+            ctx.fillStyle = "#1C2526";
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 12, Math.PI, 0);
+            ctx.fill();
+            ctx.fillRect(this.x - 12, this.y, 24, 12);
+            ctx.fillStyle = "#666";
+            ctx.beginPath();
+            ctx.arc(this.x - 8, this.y + 12, 4, 0, Math.PI * 2);
+            ctx.arc(this.x + 8, this.y + 12, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#1C2526";
+            ctx.fillRect(this.x, this.y - 6, 18, 12);
+            ctx.strokeStyle = "#666";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(this.x, this.y - 6, 18, 12);
+          } else if (this.level === 2) {
+            ctx.fillStyle = "#A9A9A9";
+            ctx.fillRect(this.x - 15, this.y - 10, 30, 20);
+            ctx.fillStyle = "#FF0000";
+            ctx.fillRect(this.x + 15, this.y - 2, 20, 4);
+            ctx.fillStyle = "#A9A9A9";
+            ctx.beginPath();
+            ctx.moveTo(this.x - 15, this.y - 10);
+            ctx.lineTo(this.x - 10, this.y + 10);
+            ctx.lineTo(this.x + 10, this.y + 10);
+            ctx.lineTo(this.x + 15, this.y - 10);
+            ctx.closePath();
+            ctx.fill();
+          } else if (this.level === 3) {
+            ctx.fillStyle = "#D3D3D3";
+            ctx.fillRect(this.x - 18, this.y - 12, 36, 24);
+            ctx.fillStyle = "#0000FF";
+            ctx.fillRect(this.x + 18, this.y - 4, 24, 8);
+            ctx.fillStyle = "#D3D3D3";
+            ctx.beginPath();
+            ctx.arc(this.x, this.y + 12, 10, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (this.level === 4) {
+            ctx.fillStyle = "#013220";
+            ctx.fillRect(this.x - 20, this.y - 15, 40, 30);
+            ctx.beginPath();
+            ctx.moveTo(this.x - 20, this.y + 15);
+            ctx.lineTo(this.x, this.y + 25);
+            ctx.lineTo(this.x + 20, this.y + 15);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = "#555";
+            ctx.fillRect(this.x + 20, this.y - 3, 25, 6);
+          } else if (this.level === 5) {
+            ctx.fillStyle = "#4B0082";
+            ctx.fillRect(this.x - 20, this.y - 15, 40, 30);
+            ctx.fillStyle = "#FFD700";
+            ctx.fillRect(this.x - 15, this.y - 25, 30, 10);
+            ctx.fillStyle = "#FF00FF";
+            ctx.font = "10px Arial";
+            ctx.fillText("THB", this.x - 10, this.y - 18);
+            ctx.strokeStyle = "#FFFFFF";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(this.x - 15, this.y - 25, 30, 10);
+          }
+        }
+        ctx.restore();
+
+        if (showRange && this.level !== 4 && this.level !== 5) {
+          ctx.strokeStyle = "rgba(200,200,200,0.5)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.range, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+    }
+
+    class Projectile {
+      constructor(x, y, target, towerLevel) {
+        this.x = x;
+        this.y = y;
+        this.target = target;
+        this.towerLevel = towerLevel;
+        this.speed = 5;
+        this.radius = 5;
+        this.isDead = false;
+      }
+      update() {
+        if (this.target.hp <= 0) {
+          this.isDead = true;
+          return;
+        }
+        const dx = this.target.x - this.x;
+        const dy = this.target.y - this.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < this.speed) {
+          this.target.hp -= 1;
+          if (this.towerLevel === 1) {
+            explosions.push({ x: this.target.x, y: this.target.y, radius: 30, alpha: 1, startTime: Date.now() });
+            for (const g of goblins) {
+              if (g !== this.target && g.hp > 0) {
+                const distToGoblin = distance(this.target.x, this.target.y, g.x, g.y);
+                if (distToGoblin < 30) {
+                  g.hp -= 0.5;
+                  if (g.hp <= 0) {
+                    coins += 5;
+                  }
+                }
+              }
+            }
+          }
+          if (this.target.hp <= 0) {
+            coins += 5;
+          }
+          this.isDead = true;
+        } else {
+          this.x += this.speed * dx / dist;
+          this.y += this.speed * dy / dist;
+        }
+      }
+      draw() {
+        ctx.save();
+        if (this.towerLevel === 2) {
+          ctx.strokeStyle = "red";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(this.x, this.y);
+          const angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+          ctx.lineTo(this.x + Math.cos(angle) * 20, this.y + Math.sin(angle) * 20);
+          ctx.stroke();
+        } else if (this.towerLevel === 3) {
+          ctx.strokeStyle = "blue";
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.moveTo(this.x, this.y);
+          const angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+          ctx.lineTo(this.x + Math.cos(angle) * 20, this.y + Math.sin(angle) * 20);
+          ctx.stroke();
+        } else if (this.towerLevel === 4) {
+          const angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+          ctx.translate(this.x, this.y);
+          ctx.rotate(angle);
+          ctx.fillStyle = "rgba(128,128,128,0.5)";
+          ctx.fillRect(-30, -2, 30, 4);
+          ctx.fillStyle = "#555";
+          ctx.fillRect(0, -4, 20, 8);
+          ctx.fillStyle = "#FF0000";
+          ctx.beginPath();
+          ctx.moveTo(20, 0);
+          ctx.lineTo(28, 4);
+          ctx.lineTo(28, -4);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          ctx.fillStyle = this.towerLevel === 1 ? "orange" : "gray";
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
+    function spawnWave() {
+      allGoblinsDefeated = false;
+      for (let i = 0; i < wave; i++) {
+        setTimeout(() => {
+          goblins.push(new Goblin());
+        }, i * 1000);
+      }
+      if (wave % 2 === 1) {
+        for (let i = 0; i < wave; i++) {
+          setTimeout(() => {
+            goblins.push(new Goblin(false, false, true));
+          }, (wave + i) * 1000);
+        }
+      }
+      if (wave % 5 === 0) {
+        const hobgoblinCount = Math.floor(wave / 5);
+        for (let i = 0; i < hobgoblinCount; i++) {
+          setTimeout(() => {
+            goblins.push(new Goblin(true));
+          }, (wave + i) * 1000);
+        }
+      }
+      if (wave % 10 === 0) {
+        const kingGoblinCount = Math.floor(wave / 10);
+        for (let i = 0; i < kingGoblinCount; i++) {
+          setTimeout(() => {
+            goblins.push(new Goblin(false, true));
+          }, (wave + i) * 1000);
+        }
+      }
+      if (wave >= 11 && (wave - 11) % 4 === 0) {
+        const balloonGoblinCount = Math.floor((wave - 11) / 4) + 1;
+        for (let i = 0; i < balloonGoblinCount; i++) {
+          setTimeout(() => {
+            goblins.push(new Goblin(false, false, false, true));
+          }, (wave + i) * 1000);
+        }
+      }
+    }
+
+    function gameLoop() {
+      if (!gameRunning || isPaused) return;
+      const now = Date.now();
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.strokeStyle = "#999";
+      ctx.lineWidth = 10;
+      ctx.beginPath();
+      ctx.moveTo(path[0].x, path[0].y);
+      for (let i = 1; i < path.length; i++) {
+        ctx.lineTo(path[i].x, path[i].y);
+      }
+      ctx.stroke();
+
+      for (const g of goblins) {
+        if (g.hp > 0) {
+          g.update();
+          g.draw();
+        }
+      }
+      goblins = goblins.filter(g => g.hp > 0);
+      allGoblinsDefeated = goblins.length === 0;
+
+      for (const t of towers) {
+        t.update();
+        t.draw(false);
+      }
+
+      for (const p of projectiles) {
+        p.update();
+        p.draw();
+      }
+      projectiles = projectiles.filter(p => !p.isDead);
+
+      explosions = explosions.filter(e => now - e.startTime < (e.isNuke ? 1000 : 500));
+      for (const e of explosions) {
+        const alpha = 1 - (now - e.startTime) / (e.isNuke ? 1000 : 500);
+        if (e.isNuke) {
+          ctx.fillStyle = `rgba(255, 165, 0, ${alpha * 0.3})`;
+          ctx.beginPath();
+          ctx.arc(e.x, e.y, e.radius * (1 + (now - e.startTime) / 1000), 0, Math.PI * 2);
+          ctx.fill();
+          const gradient = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.radius * 0.5);
+          gradient.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+          gradient.addColorStop(1, `rgba(255, 69, 0, ${alpha * 0.7})`);
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(e.x, e.y, e.radius * 0.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = `rgba(255, 255, 0, ${alpha * 0.5})`;
+          ctx.lineWidth = 2;
+          for (let i = 0; i < 8; i++) {
+            const angle = (Math.PI * 2 * i) / 8;
+            const sparkLength = e.radius * 0.7 * (now - e.startTime) / 1000;
+            ctx.beginPath();
+            ctx.moveTo(e.x + Math.cos(angle) * e.radius * 0.5, e.y + Math.sin(angle) * e.radius * 0.5);
+            ctx.lineTo(e.x + Math.cos(angle) * (e.radius * 0.5 + sparkLength), e.y + Math.sin(angle) * (e.radius * 0.5 + sparkLength));
+            ctx.stroke();
+          }
+        } else {
+          ctx.fillStyle = `rgba(255, 69, 0, ${alpha})`;
+          ctx.beginPath();
+          ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      drawCastle();
+
+      if (selectedTower && selectedTower.placing) {
+        const isValid = isNearPath(selectedTower.x, selectedTower.y, 60) && 
+                        !towers.some(t => distance(t.x, t.y, selectedTower.x, selectedTower.y) < 40);
+        ctx.strokeStyle = isValid ? "rgba(0,255,0,0.5)" : "rgba(255,0,0,0.5)";
+        ctx.lineWidth = 2;
+        const range = selectedTower.level === 4 || selectedTower.level === 5 ? 0 : 140 + selectedTower.level * 30;
+        if (range > 0) {
+          ctx.beginPath();
+          ctx.arc(selectedTower.x, selectedTower.y, range, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        if (selectedTower.level === 0) {
+          ctx.fillStyle = "#666";
+          ctx.beginPath();
+          ctx.rect(selectedTower.x - 12, selectedTower.y - 12, 24, 24);
+          ctx.fill();
+          ctx.strokeStyle = "#444";
+          ctx.lineWidth = 6;
+          ctx.beginPath();
+          ctx.moveTo(selectedTower.x, selectedTower.y);
+          ctx.lineTo(selectedTower.x + 18, selectedTower.y);
+          ctx.stroke();
+        } else if (selectedTower.level === 1) {
+          ctx.fillStyle = "#1C2526";
+          ctx.beginPath();
+          ctx.arc(selectedTower.x, selectedTower.y, 12, Math.PI, 0);
+          ctx.fill();
+          ctx.fillRect(selectedTower.x - 12, selectedTower.y, 24, 12);
+          ctx.fillStyle = "#666";
+          ctx.beginPath();
+          ctx.arc(selectedTower.x - 8, selectedTower.y + 12, 4, 0, Math.PI * 2);
+          ctx.arc(selectedTower.x + 8, selectedTower.y + 12, 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#1C2526";
+          ctx.fillRect(selectedTower.x, selectedTower.y - 6, 18, 12);
+          ctx.strokeStyle = "#666";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(selectedTower.x, selectedTower.y - 6, 18, 12);
+        } else if (selectedTower.level === 2) {
+          ctx.fillStyle = "#A9A9A9";
+          ctx.fillRect(selectedTower.x - 15, selectedTower.y - 10, 30, 20);
+          ctx.fillStyle = "#FF0000";
+          ctx.fillRect(selectedTower.x + 15, selectedTower.y - 2, 20, 4);
+          ctx.fillStyle = "#A9A9A9";
+          ctx.beginPath();
+          ctx.moveTo(selectedTower.x - 15, selectedTower.y - 10);
+          ctx.lineTo(selectedTower.x - 10, selectedTower.y + 10);
+          ctx.lineTo(selectedTower.x + 10, selectedTower.y + 10);
+          ctx.lineTo(selectedTower.x + 15, selectedTower.y - 10);
+          ctx.closePath();
+          ctx.fill();
+        } else if (selectedTower.level === 3) {
+          ctx.fillStyle = "#D3D3D3";
+          ctx.fillRect(selectedTower.x - 18, selectedTower.y - 12, 36, 24);
+          ctx.fillStyle = "#0000FF";
+          ctx.fillRect(selectedTower.x + 18, selectedTower.y - 4, 24, 8);
+          ctx.fillRect(selectedTower.x - 10, selectedTower.y - 12, 4, 24);
+          ctx.fillRect(selectedTower.x + 6, selectedTower.y - 12, 4, 24);
+          ctx.fillStyle = "#D3D3D3";
+          ctx.beginPath();
+          ctx.arc(selectedTower.x, selectedTower.y + 12, 10, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (selectedTower.level === 4) {
+          ctx.fillStyle = "#013220";
+          ctx.fillRect(selectedTower.x - 20, selectedTower.y - 15, 40, 30);
+          ctx.beginPath();
+          ctx.moveTo(selectedTower.x - 20, selectedTower.y + 15);
+          ctx.lineTo(selectedTower.x, selectedTower.y + 25);
+          ctx.lineTo(selectedTower.x + 20, selectedTower.y + 15);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = "#555";
+          ctx.fillRect(selectedTower.x + 20, selectedTower.y - 3, 25, 6);
+        } else if (selectedTower.level === 5) {
+          ctx.fillStyle = "#4B0082";
+          ctx.fillRect(selectedTower.x - 20, selectedTower.y - 15, 40, 30);
+          ctx.fillStyle = "#FFD700";
+          ctx.fillRect(selectedTower.x - 15, selectedTower.y - 25, 30, 10);
+          ctx.fillStyle = "#FF00FF";
+          ctx.font = "10px Arial";
+          ctx.fillText("THB", selectedTower.x - 10, selectedTower.y - 18);
+          ctx.strokeStyle = "#FFFFFF";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(selectedTower.x - 15, selectedTower.y - 25, 30, 10);
+        }
+      }
+
+      document.getElementById("hp").textContent = baseHP;
+      document.getElementById("coins").textContent = coins;
+      document.getElementById("wave").textContent = wave;
+
+      if (baseHP <= 0) {
+        document.getElementById("gameOverMessage").textContent = `Onnittelut! Pääsit kierrokselle ${wave}!`;
+        document.getElementById("gameOver").style.display = "block";
+        gameRunning = false;
+        return;
+      }
+
+      if (wave <= 10) {
+        if (now - lastWaveTime > nextWaveTime) {
+          wave++;
+          spawnWave();
+          lastWaveTime = now;
+        }
+      } else {
+        if (allGoblinsDefeated && now - lastWaveTime > 2000) {
+          wave++;
+          spawnWave();
+          lastWaveTime = now;
+        }
+      }
+
+      if (now - lastCoinTime > 2000) {
+        coins += 2;
+        lastCoinTime = now;
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function drawCastle() {
+      const gradient = ctx.createLinearGradient(castleX, castleY, castleX, castleY + castleHeight);
+      gradient.addColorStop(0, "#804000");
+      gradient.addColorStop(1, "#3C2F2F");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(castleX, castleY, castleWidth, castleHeight);
+
+      ctx.strokeStyle = "#2F2F2F";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(castleX, castleY, castleWidth, castleHeight);
+
+      ctx.fillStyle = "#5C4033";
+      ctx.beginPath();
+      ctx.arc(castleX + 20, castleY, 15, 0, Math.PI * 2);
+      ctx.arc(castleX + castleWidth - 20, castleY, 15, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#FF0000";
+      ctx.beginPath();
+      ctx.moveTo(castleX + castleWidth / 2, castleY - 30);
+      ctx.lineTo(castleX + castleWidth / 2 + 20, castleY - 10);
+      ctx.lineTo(castleX + castleWidth / 2, castleY - 10);
+      ctx.fill();
+      ctx.fillStyle = "#3C2F2F";
+      ctx.fillRect(castleX + castleWidth / 2 - 2, castleY - 40, 4, 30);
+
+      ctx.fillStyle = "#4A3728";
+      ctx.fillRect(castleX + castleWidth / 2 - 20, castleY + castleHeight - 30, 40, 30);
+      ctx.strokeStyle = "#2F2F2F";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(castleX + castleWidth / 2 - 20, castleY + castleHeight - 30, 40, 30);
+
+      ctx.strokeStyle = "#654321";
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 6; i++) {
+        for (let j = 0; j < 4; j++) {
+          ctx.strokeRect(castleX + i * 20, castleY + j * 30, 20, 30);
+        }
+      }
+
+      // Draw person image over the castle
+      ctx.drawImage(castlePersonImage, castleX + castleWidth / 2 - 30, castleY + castleHeight / 2 - 30, 60, 60);
+    }
+  </script>
+</body>
+</html>
